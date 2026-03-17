@@ -1,0 +1,84 @@
+services:
+  victoriametrics:
+    container_name: victoriametrics
+    image: victoriametrics/victoria-metrics:v1.101.0
+    # PORTS REMOVED: Internal communication only
+    volumes:
+      - vmdata:/storage
+    command:
+      - "--storageDataPath=/storage"
+      - "--httpListenAddr=:8428"
+      - "-loggerFormat=json"
+    networks:
+      - monitoring_nw
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: always
+
+  victorialogs:
+    container_name: victorialogs
+    image: victoriametrics/victoria-logs:v0.12.0-victorialogs
+    # PORTS REMOVED: Internal communication only
+    volumes:
+      - vldata:/storage
+    command:
+      - "--storageDataPath=/storage"
+      - "--httpListenAddr=:9428"
+      - "-loggerFormat=json"
+    networks:
+      - monitoring_nw
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: always
+
+  vector:
+    container_name: vector
+    image: timberio/vector:0.38.0-alpine
+    volumes:
+      - ./config/vector/vector.toml:/etc/vector/vector.toml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    environment:
+      - HOSTNAME=vps-host
+      - VECTOR_SELF_LABEL=vector
+    networks:
+      - monitoring_nw
+    deploy:
+      resources:
+        limits:
+          memory: 192M # Increased slightly to handle metrics + logs
+    restart: always
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana-oss:11.0.0
+    ports:
+      - "3000:3000" # Only Grafana is exposed
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - monitoring_nw
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: always
+
+networks:
+  monitoring_nw:
+    name: monitoring_nw
+    driver: bridge
+
+volumes:
+  vmdata:
+  vldata:
+  grafana_data:

@@ -1,0 +1,41 @@
+# --- SOURCES ---
+
+# 1. Docker Logs
+[sources.docker_logs]
+type = "docker_logs"
+exclude_containers = ["vector"]
+
+# 2. Host Metrics (Replaces Node Exporter)
+[sources.host_metrics]
+type = "host_metrics"
+collectors = ["cpu", "mem", "disk", "net", "load"]
+
+# 3. Docker Container Metrics (Replaces cAdvisor)
+[sources.docker_stats]
+type = "docker_stats"
+
+# --- TRANSFORMS ---
+
+[transforms.parsed_logs]
+type = "remap"
+inputs = ["docker_logs"]
+source = """
+.container_name = del(.container_name)
+.image = del(.image)
+.host = get_env_var!("HOSTNAME")
+"""
+
+# --- SINKS ---
+
+# Sink logs to VictoriaLogs
+[sinks.victorialogs]
+type = "http"
+inputs = ["parsed_logs"]
+uri = "http://victorialogs:9428/insert/jsonline?_stream_fields=container_name,image,host&_msg_field=message"
+encoding.codec = "ndjson"
+
+# Sink metrics to VictoriaMetrics (via Remote Write)
+[sinks.victoriametrics]
+type = "prometheus_remote_write"
+inputs = ["host_metrics", "docker_stats"]
+endpoint = "http://victoriametrics:8428/api/v1/write"

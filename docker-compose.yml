@@ -1,3 +1,4 @@
+---
 services:
   # --- SECURITY LAYER ---
   docker-socket-proxy:
@@ -20,7 +21,7 @@ services:
     read_only: true
     tmpfs:
       - /run
-      - /tmp # Added for haproxy config generation
+      - /tmp  # Added for haproxy config generation
     restart: unless-stopped
 
   # --- MONITORING LAYER ---

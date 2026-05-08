@@ -1,10 +1,11 @@
+---
 name: Monitoring Stack Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   validate:
@@ -22,12 +23,10 @@ jobs:
       - name: Lint Shell Scripts
         uses: ludeeus/action-shellcheck@master
         with:
-          scandir: './init-db'
+          scandir: './config/postgres/init-db'
 
       - name: Lint YAML
         uses: ibiqlik/action-yamllint@v3
         with:
           file_or_dir: '.'
           config_file: .yamllint.yml
-          ignore: |
-            .github/workflows/pipeline.yml

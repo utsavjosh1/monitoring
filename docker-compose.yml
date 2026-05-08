@@ -73,7 +73,7 @@ services:
     container_name: grafana
     image: grafana/grafana-oss:11.0.0
     ports:
-      - "3000:3000" # Only Grafana is exposed
+      - "127.0.0.1:3000:3000" # Only Grafana is exposed locally/via tunnel
     volumes:
       - grafana_data:/var/lib/grafana
       - ./config/grafana/provisioning:/etc/grafana/provisioning
@@ -103,7 +103,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -124,7 +124,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - redisdata:/data
     networks:

@@ -14,7 +14,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 192M
     restart: always
 
   victorialogs:
@@ -32,7 +32,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 192M
     restart: always
 
   vector:
@@ -51,7 +51,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 192M # Increased slightly to handle metrics + logs
+          memory: 128M # Increased slightly to handle metrics + logs
     restart: always
 
   grafana:
@@ -70,7 +70,42 @@ services:
     deploy:
       resources:
         limits:
+          memory: 128M
+    restart: always
+
+  postgres:
+    container_name: postgres
+    image: pgvector/pgvector:pg17
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - monitoring_nw
+    deploy:
+      resources:
+        limits:
           memory: 256M
+    restart: always
+
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - monitoring_nw
+    deploy:
+      resources:
+        limits:
+          memory: 64M
     restart: always
 
 networks:
@@ -82,3 +117,5 @@ volumes:
   vmdata:
   vldata:
   grafana_data:
+  pgdata:
+  redisdata:

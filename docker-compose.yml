@@ -15,6 +15,11 @@ services:
       resources:
         limits:
           memory: 192M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: always
 
   victorialogs:
@@ -33,6 +38,11 @@ services:
       resources:
         limits:
           memory: 192M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: always
 
   vector:
@@ -52,6 +62,11 @@ services:
       resources:
         limits:
           memory: 128M # Increased slightly to handle metrics + logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: always
 
   grafana:
@@ -65,17 +80,24 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     networks:
       - monitoring_nw
     deploy:
       resources:
         limits:
           memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: always
 
   postgres:
     container_name: postgres
     image: pgvector/pgvector:pg17
+    command: ["postgres", "-c", "max_connections=50"]
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -90,6 +112,11 @@ services:
       resources:
         limits:
           memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: always
 
   redis:
@@ -106,6 +133,11 @@ services:
       resources:
         limits:
           memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: always
 
 networks:

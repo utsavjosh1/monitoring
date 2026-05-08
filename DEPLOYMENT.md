@@ -1,98 +1,85 @@
-# Deployment Guide: Global Monitoring & Database Stack
+# Production Deployment: Hardened Monitoring & Database Stack
 
-This repository contains the configuration and deployment setup for a centralized, highly-optimized **Monitoring and Database** stack designed to serve multiple projects (like Postly and Learnest) from a single VPS or local environment. The entire stack is configured to run under a strict **1GB memory limit**.
+This guide details the deployment of the "Senior Engineer" monitoring stack, optimized for a **1GB VPS**. The architecture is 100% hardened using immutable containers and least-privilege principles.
 
-## Architecture Overview
+## 🏛️ Architecture Overview
+
+### Security Layer
+- **docker-socket-proxy**: A secure gatekeeper for the Docker API. It prevents application containers from having direct access to the host's Docker socket.
 
 ### Database Layer
-- **PostgreSQL (`pgvector`)**: Stores relational application data and vector embeddings.
-- **Redis**: In-memory data store for caching and queues.
+- **PostgreSQL (pgvector)**: Hardened with `SCRAM-SHA-256` and multi-DB auto-initialization.
+- **Redis**: Hardened with password protection and disabled dangerous commands (`FLUSHALL`).
 
 ### Observability Layer
-- **VictoriaMetrics**: Collects and stores time-series metrics. Extremely efficient alternative to Prometheus.
-- **VictoriaLogs**: High-performance log aggregation system. Efficient alternative to Loki/Elasticsearch.
-- **Vector**: Universal log and metric router/shipper. Efficient alternative to Promtail/Logstash.
-- **Grafana**: Unified dashboard for visualizing metrics and logs.
+- **VictoriaMetrics / VictoriaLogs**: High-performance time-series and log storage.
+- **Vector**: Data pipeline configured with **disk buffering** to prevent memory spikes on your 1GB VPS.
+- **Grafana**: Automated visualization with secure provisioning.
 
-## Prerequisites
+## 🚀 Deployment Steps
 
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
-
-## Local Deployment
-
-To run the stack locally for development or testing:
-
-1. **Launch the stack**:
-   ```bash
-   docker-compose up -d
-   ```
-
-2. **Access the Services**:
-   - **Grafana**: `http://localhost:3000` (User: `admin`, Password: `admin`)
-   - **PostgreSQL**: `localhost:5432` (User: `postgres`, Password: `postgres`)
-   - **Redis**: `localhost:6379` (No password)
-
-3. **Initialize Application Databases**:
-   By default, PostgreSQL only contains the `postgres` database. Create your app databases manually the first time:
-   ```bash
-   docker exec -it postgres psql -U postgres -c "CREATE DATABASE postly;"
-   docker exec -it postgres psql -U postgres -c "CREATE DATABASE learnest;"
-   ```
-
-## VPS Deployment Considerations
-
-When deploying to a production VPS, consider the following:
-
-### 1. Security & SSL
-It is highly recommended to run this stack behind a reverse proxy like **Nginx** or **Traefik** to handle SSL (HTTPS) and basic authentication. Do not expose monitoring endpoints without authentication.
-
-Example Nginx Config Snippet for Grafana:
-```nginx
-server {
-    listen 80;
-    server_name monitoring.yourdomain.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name monitoring.yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/monitoring.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/monitoring.yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
+### 1. Environment Preparation
+Copy the template and configure your secrets:
+```bash
+cp .env.example .env
+nano .env
 ```
 
-### 2. Network Security
-- Ensure internal ports for `VictoriaMetrics` (8428), `VictoriaLogs` (9428), and `Vector` are **not** exposed directly to the public internet. 
-- Only expose `Grafana` (3000), `PostgreSQL` (5432), and `Redis` (6379) if strictly necessary, ideally restricting access via a Firewall (UFW) to only allow traffic from trusted application IPs.
-- **Crucial**: Change the default passwords for Grafana and PostgreSQL in production via environment variables.
+### 2. Database Initialization (Automation)
+The stack uses a custom initialization script (`./init-db/01-init.sh`) to eliminate manual setup.
+- **Variable**: `POSTGRES_MULTIPLE_DATABASES`
+- **Behavior**:
+  - On first start, the script iterates through the comma-separated list.
+  - It creates each database if it does not already exist.
+  - It executes `CREATE EXTENSION IF NOT EXISTS vector;` in every database.
+- **Scaling**: To add a new database later, simply add it to the list in `.env` and restart the stack with `docker-compose up -d`.
 
-### 3. Data Persistence
-Docker volumes are used to ensure data isn't lost on restart:
-- `vmdata`: VictoriaMetrics time-series data
-- `vldata`: VictoriaLogs log data
-- `grafana_data`: Grafana configuration and dashboards
-- `pgdata`: PostgreSQL database files
-- `redisdata`: Redis append-only files / snapshots
+### 3. Launch the Stack
+```bash
+docker-compose up -d
+```
+The stack will automatically:
+1. Initialize the `postly` and `learnest` databases.
+2. Enable `pgvector` in each.
+3. Configure internal routing for all logs/metrics.
 
-Ensure your VPS has enough disk space for long-term metric/log retention and database growth.
+### 3. Verification
+```bash
+# Check container health (Wait for 'healthy' status)
+docker ps
 
-## Configuration Details
+# Monitor resource limits
+docker stats
+```
 
-- `config/vector/vector.toml`: Defines which logs and metrics Vector should scrape and where to send them.
-- `config/grafana/provisioning/`: Contains automated datasource and dashboard setups for Grafana.
+## 🛡️ Security Hardening Details
 
-## Troubleshooting
+### Immutable Containers
+All containers run with `read_only: true`. If you need to perform maintenance inside a container:
+- Use `docker exec` for approved tools.
+- Do NOT attempt to install packages or modify files inside the running container (they will fail).
 
-- **Check logs**: `docker-compose logs -f <service-name>`
-- **Verify containers**: `docker ps`
-- **Memory usage**: `docker stats` (Ensure total memory is under the configured 960MB limit)
-- **Reset data**: `docker-compose down -v` (**Warning**: this deletes ALL stored databases, metrics, and logs)
+### Zero-Trust Networking
+Only the following ports are bound, and only to `127.0.0.1`:
+- **Grafana**: `3000`
+- **Postgres**: `5433`
+- **Redis**: `6380`
+
+### CI/CD Pipeline
+Every change to this repository is validated via **GitHub Actions**:
+- **Linting**: ShellCheck for init scripts, yamllint for configs.
+- **Validation**: `docker-compose config` check.
+
+## 💾 Backups
+Use the provided `backup.sh` script to create daily snapshots of your relational data.
+```bash
+./backup.sh
+```
+Snapshots are stored in `./backups` and old backups (>7 days) are automatically pruned.
+
+## 🛠️ Troubleshooting
+
+- **"Read-only file system" error**: This is intentional. Use volumes for persistent data.
+- **Postgres Health Check Fails**: Ensure your `.env` has the correct `POSTGRES_USER` and `POSTGRES_PASSWORD`.
+- **Vector not seeing logs**: Check if `docker-socket-proxy` is running and healthy.
+- **OOM Kill**: If the OS kills a container, verify that your total `memory: limits` in `docker-compose.yml` do not exceed 850MB.

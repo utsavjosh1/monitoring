@@ -1,0 +1,33 @@
+name: Monitoring Stack Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
+      - name: Lint Shell Scripts
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './init-db'
+
+      - name: Lint YAML
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: '.'
+          config_file: .yamllint.yml
+          ignore: |
+            .github/workflows/pipeline.yml

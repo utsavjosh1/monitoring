@@ -1,18 +1,23 @@
+# --- GLOBAL CONFIG ---
+data_dir = "/var/lib/vector"
+
 # --- SOURCES ---
 
-# 1. Docker Logs
+# 1. Docker Logs (via Security Proxy)
 [sources.docker_logs]
 type = "docker_logs"
-exclude_containers = ["vector"]
+endpoint = "http://docker-socket-proxy:2375"
+exclude_containers = ["vector", "docker-socket-proxy"]
 
 # 2. Host Metrics (Replaces Node Exporter)
 [sources.host_metrics]
 type = "host_metrics"
 collectors = ["cpu", "mem", "disk", "net", "load"]
 
-# 3. Docker Container Metrics (Replaces cAdvisor)
+# 3. Docker Container Metrics (via Security Proxy)
 [sources.docker_stats]
 type = "docker_stats"
+endpoint = "http://docker-socket-proxy:2375"
 
 # --- TRANSFORMS ---
 
@@ -33,9 +38,15 @@ type = "http"
 inputs = ["parsed_logs"]
 uri = "http://victorialogs:9428/insert/jsonline?_stream_fields=container_name,image,host&_msg_field=message"
 encoding.codec = "ndjson"
+[sinks.victorialogs.buffer]
+type = "disk"
+max_size = 104857600 # 100MB
 
 # Sink metrics to VictoriaMetrics (via Remote Write)
 [sinks.victoriametrics]
 type = "prometheus_remote_write"
 inputs = ["host_metrics", "docker_stats"]
 endpoint = "http://victoriametrics:8428/api/v1/write"
+[sinks.victoriametrics.buffer]
+type = "disk"
+max_size = 104857600 # 100MB
